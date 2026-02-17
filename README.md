@@ -160,4 +160,4 @@ A: 当前版本详情页未分页。如需分页，请参考“自定义”部�
 
 ## **🤝 贡献**
 
-欢迎提交 Issue 和 Pull Request。如果你有好的改进建议，请随时联系。
+欢迎提交 Issue 和 Pull Request。如果你有好的改进建议，请随时联系ziyege@gmail.com。
