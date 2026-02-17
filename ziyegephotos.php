@@ -2,10 +2,10 @@
 /**
  * 子夜歌双视图相册
  *
- * 版本号:     v1.0.0
- * 作者:       子夜歌
- * 更新日期:    2026-02-17
- * GitHub:     https://github.com/ziyege/typecho-ziyege-photo
+ * @版本号:     v1.0.0
+ * @作者:       子夜歌
+ * @更新日期:    2026-02-17
+ * @GitHub:     https://github.com/ziyege/typecho-ziyege-photo
  * 说明: 支持文章封面列表与图片详情双视图，集成Masonry瀑布流、Uncover动画、Magnific Popup灯箱。
  *          详情页展示单篇文章的所有图片，首页展示指定分类下的文章封面。
  *
@@ -646,3 +646,4 @@ render();
 </body>
 
 </html>
+
