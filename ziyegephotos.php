@@ -144,7 +144,7 @@ if ($pageMode === 'home') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Uncover 动画专用CSS -->
-    <link rel="stylesheet" href="<?php $this->options->themeUrl('light/uncover.css'); ?>">
+    <link rel="stylesheet" href="<?php $this->options->themeUrl('ziyege/uncover.css'); ?>">
 
     <!-- Magnific Popup 灯箱CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/magnific-popup.min.css">
@@ -411,9 +411,9 @@ if ($pageMode === 'home') {
 <!-- imagesLoaded（确保图片加载后再布局） -->
 <script src="https://unpkg.com/imagesloaded@5/imagesloaded.pkgd.min.js"></script>
 <!-- Anime.js（Uncover 动画引擎） -->
-<script src="<?php $this->options->themeUrl('light/anime.min.js'); ?>"></script>
+<script src="<?php $this->options->themeUrl('ziyege/anime.min.js'); ?>"></script>
 <!-- Uncover.js（切片动画库） -->
-<script src="<?php $this->options->themeUrl('light/uncover.js'); ?>"></script>
+<script src="<?php $this->options->themeUrl('ziyege/uncover.js'); ?>"></script>
 <!-- Magnific Popup 灯箱 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/jquery.magnific-popup.min.js"></script>
 
@@ -644,4 +644,5 @@ render();
 <!-- Bootstrap Icons（用于无图片提示等） -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </body>
+
 </html>
