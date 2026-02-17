@@ -2,6 +2,9 @@
 # **双视图相册模板 for Typecho**
 
 > 一个优雅的 Typecho 独立页面模板，支持文章封面列表与图片详情双视图，集成 Masonry 瀑布流、Uncover 切片动画、Magnific Popup 灯箱。让你的博客瞬间变身高颜值相册！
+>
+> ![Uploading image.png…]()
+
 
 ## **✨ 特性**
 
