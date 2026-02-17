@@ -3,8 +3,10 @@
 
 > 一个优雅的 Typecho 独立页面模板，支持文章封面列表与图片详情双视图，集成 Masonry 瀑布流、Uncover 切片动画、Magnific Popup 灯箱。让你的博客瞬间变身高颜值相册！
 >
-> ![Uploading image.png…]()
+<img width="1907" height="920" alt="image" src="https://github.com/user-attachments/assets/b23a6069-0fa1-40f9-8c95-fd5a70086570" />
+<img width="1878" height="911" alt="image" src="https://github.com/user-attachments/assets/4195cdd1-ba01-4285-b851-ef88a6006ce3" />
 
+在线演示：https://blog.ziyege.com   相册链接
 
 ## **✨ 特性**
 
