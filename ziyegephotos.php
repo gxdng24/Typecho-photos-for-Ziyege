@@ -1,26 +1,62 @@
-<?php if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+<?php
+if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 /**
  * 子夜歌双视图相册
  *
  * @版本号:     v1.0.0
- * @作者:       子夜歌 ziyege.com
+ * @作者:       子夜歌
  * @更新日期:    2026-02-17
- * @GitHub:     https://github.com/gxdng24/Typecho-photos-for-Ziyege
- * 说明: 支持文章封面列表与图片详情双视图，集成Masonry瀑布流、Uncover动画、Magnific Popup灯箱。
+ * @GitHub:     https://github.com/ziyege/typecho-ziyege-photo
+ * @说明: 支持文章封面列表与图片详情双视图，集成Masonry瀑布流、Magnific Popup灯箱。
  *          详情页展示单篇文章的所有图片，首页展示指定分类下的文章封面。
  *
  * 功能特性:
  * - 双视图切换（首页/详情页）
  * - 支持行内式和引用式Markdown图片
  * - Masonry瀑布流布局，响应式适配
- * - Uncover切片动画（进入视口时触发）
  * - Magnific Popup灯箱，支持左右导航、标题显示
- * - 页脚控制台（关于按钮弹出全宽面板）
  * - 完全响应式，基于Bootstrap 5
+ * - 图片懒加载（jQuery LazyLoad）
  *
  * @package custom
  */
-
+/**
+ * 生成缩略图URL（支持七牛、又拍云、本地附件模拟）
+ * @param string $url 原图URL
+ * @param int $width 宽度
+ * @param int $height 高度
+ * @return string 处理后的缩略图URL
+ */
+function getThumbnailUrl($url, $width = 400, $height = 300) {
+    // 如果是空URL，直接返回
+    if (empty($url)) return $url;
+    // 对URL进行编码（但不影响已有查询参数）
+$url = str_replace(' ', '%20', $url);
+    // 1. 七牛云存储（需开启图片处理）
+    if (strpos($url, '你的七牛域名.com') !== false) {
+        return $url . '?imageView2/1/w/' . $width . '/h/' . $height;
+    }
+    
+    // 2. 又拍云存储
+    if (strpos($url, '你的又拍云域名.com') !== false) {
+        return $url . '!/both/' . $width . 'x' . $height;
+    }
+    
+    // 3. 阿里云OSS
+    if (strpos($url, '你的OSS域名.com') !== false) {
+        return $url . '?x-oss-process=image/resize,m_fixed,w_' . $width . ',h_' . $height;
+    }
+    
+    // 4. 本地附件（假设上传目录为 /usr/uploads/）
+    if (strpos($url, '/usr/uploads/') !== false) {
+        // 如果没有云存储，暂时无法生成缩略图，返回原图
+        // 建议升级方案：使用七牛镜像存储或安装缩略图插件
+        return $url;
+    }
+    
+    // 5. 其他外链图片，保持原图
+    return $url;
+}
 // ==================== 初始化参数 ====================
 // 获取URL参数 post_id，决定当前是首页还是详情页
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 0;
@@ -96,15 +132,15 @@ if ($pageMode === 'home') {
         if (count($articleImages) > 0) {
             // 每篇文章生成一条数据，供前端渲染卡片
             $initialData[] = [
-                'type'       => 'article',               // 数据类型：文章卡片
-                'title'      => $post['title'],          // 文章标题
-                'cover'      => $articleImages[0]['url'],// 封面图（第一张）
-                'imageCount' => count($articleImages),   // 该文章图片总数
-                'postId'     => $post['cid']             // 文章ID，用于生成详情页链接
-            ];
+    'type'       => 'article',
+    'title'      => $post['title'],
+    'cover'      => getThumbnailUrl($articleImages[0]['url'], 400, 300),  // 生成400x300缩略图
+    'imageCount' => count($articleImages),
+    'postId'     => $post['cid']
+];
         }
     }
-    $pageTitle = '相册 - ' . $this->options->title();    // 页面标题
+    $pageTitle = '相册 - ' . $this->options->title;    // 页面标题
 
 } else {
     // ---------- 详情模式：获取单篇文章的所有图片 ----------
@@ -128,7 +164,7 @@ if ($pageMode === 'home') {
         $pageTitle = htmlspecialchars($post['title']) . ' - 图片详情';
     } else {
         // 文章不存在，跳转回首页
-        header('Location: ' . $this->options->siteUrl . $this->request->getRequestUri());
+        header('Location: ' . $this->options->siteUrl);
         exit;
     }
 }
@@ -136,15 +172,12 @@ if ($pageMode === 'home') {
 <!DOCTYPE HTML>
 <html lang="zh-CN">
 <head>
-    <title><?php echo $pageTitle; ?></title>
+    <title><?php echo htmlspecialchars($pageTitle); ?></title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 
     <!-- Bootstrap 5 核心CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- Uncover 动画专用CSS -->
-    <link rel="stylesheet" href="<?php $this->options->themeUrl('ziyege/uncover.css'); ?>">
 
     <!-- Magnific Popup 灯箱CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/magnific-popup.min.css">
@@ -172,19 +205,17 @@ if ($pageMode === 'home') {
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             transition: transform 0.2s;
+            background-color: #f0f0f0;       /* 图片加载前的占位背景 */
         }
         .thumb:hover {
             transform: scale(1.02);
         }
 
-        /* ---------- 图片背景区（用于 Uncover 动画） ---------- */
-        .scroll-img {
+        /* ---------- 图片样式：宽度100%，高度自适应，保持原比例 ---------- */
+        .thumb img {
             width: 100%;
-            aspect-ratio: 1 / 1;             /* 正方形 */
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-color: #f0f0f0;        /* 加载中的占位色 */
+            height: auto;
+            display: block;                  /* 去除图片下方多余间隙 */
         }
 
         /* ---------- 全屏遮罩（悬停时出现） ---------- */
@@ -332,20 +363,24 @@ if ($pageMode === 'home') {
             opacity: 0;
         }
     </style>
+    <?php if ($pageMode === 'home' && !empty($initialData)): ?>
+    <?php for ($i = 0; $i < min(4, count($initialData)); $i++): ?>
+    <link rel="preload" as="image" href="<?= htmlspecialchars($initialData[$i]['cover']) ?>">
+    <?php endfor; ?>
+<?php endif; ?>
 </head>
 <body>
-
 <!-- ==================== 导航栏 ==================== -->
 <nav class="navbar navbar-light bg-white shadow-sm mb-4">
     <div class="container-fluid">
         <!-- 左侧品牌区：点击返回首页，根据模式显示不同文字 -->
-        <a class="navbar-brand fs-4" href="<?php $this->permalink(); ?>">
-            <strong><?php $this->options->title(); ?></strong>
+        <a class="navbar-brand fs-4" href="<?= $this->permalink() ?>" title="返回相册">
+            <strong><?= $this->options->title ?></strong>
             <small class="text-muted"><?php echo $pageMode === 'home' ? '相册' : '图片详情'; ?></small>
         </a>
         <!-- 详情页时显示返回相册按钮 -->
         <?php if ($pageMode === 'post'): ?>
-        <a href="<?php $this->permalink(); ?>" class="btn btn-outline-secondary btn-sm">返回相册</a>
+        <a href="<?= $this->permalink() ?>" class="btn btn-outline-secondary btn-sm">返回相册</a>
         <?php endif; ?>
     </div>
 </nav>
@@ -374,32 +409,20 @@ if ($pageMode === 'home') {
     <div class="container">
         <div class="d-flex justify-content-between align-items-center">
             <!-- 左侧：相册名称，点击返回首页 -->
-            <a href="<?php $this->permalink(); ?>" class="fw-bold fs-4 text-decoration-none text-dark">
-                <?php $this->options->title(); ?> 相册
-            </a>
-            <!-- 右侧：关于按钮，触发 Offcanvas 面板 -->
-            <button class="btn btn-outline-secondary btn-sm fs-6 py-2 px-3" type="button"
-                    data-bs-toggle="offcanvas" data-bs-target="#footerOffcanvas" aria-controls="footerOffcanvas">
-                关于
-            </button>
+            <a href="<?= $this->options->siteUrl ?>" title="返回主页" class="fw-bold fs-4 text-decoration-none text-dark">
+    <?= $this->options->title ?> 碧落山水间，品清韵悠扬
+</a>
+            <!-- 右侧：版权指示 -->
+            <div class="text-muted small">
+                &copy; <?php echo date('Y'); ?> 
+                <a href="<?= $this->options->siteUrl ?>" class="text-decoration-none text-muted">
+                  
+                </a> 
+                · Powered by <a href="http://typecho.org" target="_blank" rel="nofollow">Typecho</a> · Designed by <a href="https://blog.ziyege.com" target="_blank">ziyege.com</a>
+            </div>
         </div>
     </div>
 </footer>
-
-<!-- ==================== Offcanvas 控制台面板 ==================== -->
-<div class="offcanvas offcanvas-bottom" tabindex="-1" id="footerOffcanvas" aria-labelledby="offcanvasLabel"
-     style="height: auto; min-height: 300px;">
-    <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="offcanvasLabel">控制台</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-        <p>本系统共有 <span id="count_CN">0</span> 张图片，每页显示 12 张，集成 Masonry 瀑布流与 Uncover 动画。</p>
-        <p class="text-muted small mb-0">
-            &copy; <?php echo date('Y'); ?> <a href="<?php $this->options->siteUrl(); ?>"><?php $this->options->title(); ?></a> · Powered by ZDSR
-        </p>
-    </div>
-</div>
 
 <!-- ==================== 引入 JavaScript 库 ==================== -->
 <!-- Bootstrap 5 JavaScript（含 Popper） -->
@@ -410,10 +433,8 @@ if ($pageMode === 'home') {
 <script src="https://unpkg.com/masonry-layout@4/dist/masonry.pkgd.min.js"></script>
 <!-- imagesLoaded（确保图片加载后再布局） -->
 <script src="https://unpkg.com/imagesloaded@5/imagesloaded.pkgd.min.js"></script>
-<!-- Anime.js（Uncover 动画引擎） -->
-<script src="<?php $this->options->themeUrl('ziyege/anime.min.js'); ?>"></script>
-<!-- Uncover.js（切片动画库） -->
-<script src="<?php $this->options->themeUrl('ziyege/uncover.js'); ?>"></script>
+<!-- jQuery LazyLoad 懒加载插件 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.lazyload/1.9.1/jquery.lazyload.min.js"></script>
 <!-- Magnific Popup 灯箱 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/jquery.magnific-popup.min.js"></script>
 
@@ -423,6 +444,8 @@ if ($pageMode === 'home') {
 var initialData = <?php echo json_encode($initialData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var pageMode = '<?php echo $pageMode; ?>'; // 'home' 或 'post'
 
+// 透明占位图（极小的 base64 图片，用于懒加载初始 src）
+const BLANK_IMAGE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 // 图片加载失败的占位图（灰色背景 + 文字）
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%20viewBox%3D%220%200%20400%20400%22%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20font-family%3D%22Arial%22%20font-size%3D%2220%22%20fill%3D%22%23999%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3E%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5%3C%2Ftext%3E%3C%2Fsvg%3E';
 
@@ -449,17 +472,20 @@ function render() {
             // 链接到文章详情页，附带 post_id 参数
             var a = document.createElement('a');
             a.className = 'image d-block';
-            a.href = '<?php $this->permalink(); ?>?post_id=' + item.postId;
+            a.href = '<?= $this->permalink() ?>?post_id=' + item.postId;
 
-            // 背景图容器（用于 Uncover 动画）
-            var bgDiv = document.createElement('div');
-            bgDiv.className = 'scroll-img';
-            bgDiv.style.backgroundImage = 'url(' + item.cover + ')';
-            bgDiv.onerror = function() {
-                this.style.backgroundImage = 'url(' + PLACEHOLDER_IMAGE + ')';
+            // 创建 img 标签，使用懒加载
+            var img = document.createElement('img');
+            img.src = BLANK_IMAGE;                     // 初始占位图
+            img.setAttribute('data-original', item.cover); // 真实地址
+            img.alt = item.title || '文章封面';
+            img.className = 'lazy';                     // 供插件识别
+            img.onerror = function() {
+                this.src = PLACEHOLDER_IMAGE;
+                if (masonryInstance) masonryInstance.layout(); // 错误后重新布局
             };
 
-            a.appendChild(bgDiv);
+            a.appendChild(img);
             article.appendChild(a);
 
             // 悬停遮罩
@@ -491,14 +517,18 @@ function render() {
             a.className = 'image d-block';
             a.href = item.url;
 
-            var bgDiv = document.createElement('div');
-            bgDiv.className = 'scroll-img';
-            bgDiv.style.backgroundImage = 'url(' + item.url + ')';
-            bgDiv.onerror = function() {
-                this.style.backgroundImage = 'url(' + PLACEHOLDER_IMAGE + ')';
+            // 创建 img 标签，使用懒加载
+            var img = document.createElement('img');
+            img.src = BLANK_IMAGE;                      // 初始占位图
+            img.setAttribute('data-original', item.url); // 真实地址
+            img.alt = item.title || '图片';
+            img.className = 'lazy';                      // 供插件识别
+            img.onerror = function() {
+                this.src = PLACEHOLDER_IMAGE;
+                if (masonryInstance) masonryInstance.layout(); // 错误后重新布局
             };
 
-            a.appendChild(bgDiv);
+            a.appendChild(img);
             article.appendChild(a);
 
             // 悬停遮罩
@@ -549,8 +579,16 @@ function render() {
         });
         console.log('Masonry initialized');
 
-        // 初始化 Uncover 动画
-        initUncover();
+        // 初始化懒加载
+        $("img.lazy").lazyload({
+            effect: "fadeIn",                // 淡入效果
+            threshold: 200,                   // 提前 200px 加载
+            load: function() {
+                // 图片加载成功后重新布局 Masonry
+                if (masonryInstance) masonryInstance.layout();
+                console.log('Lazy image loaded, masonry relayout');
+            }
+        });
 
         // 如果是详情页，初始化灯箱
         if (pageMode === 'post') {
@@ -559,51 +597,6 @@ function render() {
 
         // 隐藏加载指示器
         loading.classList.remove('show');
-    });
-}
-
-// ==================== Uncover 动画初始化 ====================
-function initUncover() {
-    if (typeof Uncover === 'undefined') return;
-
-    var items = Array.from(document.querySelectorAll('.scroll-img'));
-    if (items.length === 0) return;
-
-    // 根据屏幕宽度决定切片数量（手机 3，桌面 4）
-    const isMobile = window.innerWidth < 768;
-    const slicesTotal = isMobile ? 3 : 4;
-
-    // 两种配置，奇偶交替，增加动感
-    const uncoverOpts = [
-        { slicesTotal: slicesTotal, slicesColor: '#fff', orientation: 'horizontal', slicesOrigin: { show: 'right', hide: 'left' } },
-        { slicesTotal: slicesTotal, slicesColor: '#fff', orientation: 'horizontal', slicesOrigin: { show: 'left', hide: 'right' } }
-    ];
-
-    var uncoverArr = items.map(function(el, index) {
-        return new Uncover(el, uncoverOpts[index % 2]);
-    });
-
-    // 动画参数（与 Light 模板一致）
-    var animationSettings = {
-        show: { slices: { duration: 600, delay: (_, i, t) => (t - i - 1) * 100, easing: 'easeInOutCirc' } },
-        hide: { slices: { duration: 600, delay: (_, i, t) => (t - i - 1) * 100, easing: 'easeInOutCirc' } }
-    };
-
-    // 使用 IntersectionObserver 监听元素进入/离开视口
-    var observer = new IntersectionObserver(function(entries) {
-        entries.forEach(function(entry) {
-            var idx = items.indexOf(entry.target);
-            if (idx === -1) return;
-            if (entry.intersectionRatio > 0.3) {
-                uncoverArr[idx].show(true, animationSettings.show);
-            } else {
-                uncoverArr[idx].hide(true, animationSettings.hide);
-            }
-        });
-    }, { threshold: [0, 0.3, 0.5, 1] });
-
-    items.forEach(function(item) {
-        observer.observe(item);
     });
 }
 
@@ -644,7 +637,4 @@ render();
 <!-- Bootstrap Icons（用于无图片提示等） -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </body>
-
 </html>
-
-
