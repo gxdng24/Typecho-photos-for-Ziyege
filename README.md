@@ -38,7 +38,7 @@
 ## **📦 安装方法**
 
 1. **下载文件**\
-   从 [GitHub 仓库](https://github.com/ziyege/typecho-ziyege-photo) 下载 `ziyegephotos.php`。
+   从 [GitHub 仓库](https://github.com/ziyege/typecho-ziyege-photo) 下载 `ziyegephotos.php`全部文件。
 2. **上传**\
    将文件上传至你的 Typecho 主题目录（例如 `/usr/themes/你的主题/`）。
 3. **创建独立页面**\
