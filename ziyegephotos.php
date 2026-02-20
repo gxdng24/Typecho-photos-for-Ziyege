@@ -7,6 +7,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * @作者:       子夜歌
  * @更新日期:    2026-02-17
  * @GitHub:     https://github.com/ziyege/typecho-ziyege-photo
+ * @license MIT
  * @说明: 支持文章封面列表与图片详情双视图，集成Masonry瀑布流、Magnific Popup灯箱。
  *          详情页展示单篇文章的所有图片，首页展示指定分类下的文章封面。
  *
@@ -53,8 +54,21 @@ $url = str_replace(' ', '%20', $url);
         // 建议升级方案：使用七牛镜像存储或安装缩略图插件
         return $url;
     }
+    // 5. 缤纷云存储
+    if (strpos($url, 'cdn.ziyege.com') !== false) {
+        // 选项A：强制裁剪模式（封面图统一尺寸）
+        // 同时指定w和h，系统自动按mode=crop处理，居中裁剪
+        return $url . '?w=' . $width . '&h=' . $height;
+        
+        // 选项B：等比缩略模式（保留完整图片，可能有留白）
+        // 如需使用，请注释上面一行，取消下面一行的注释
+        // return $url . '?w=' . $width . '&h=' . $height . '&mode=clip';
+        
+        // 选项C：如需适配高分辨率屏幕（如Retina），可添加dpr参数
+        // return $url . '?w=' . $width . '&h=' . $height . '&dpr=2';
+    }
     
-    // 5. 其他外链图片，保持原图
+    // 6. 其他外链图片，保持原图
     return $url;
 }
 // ==================== 初始化参数 ====================
