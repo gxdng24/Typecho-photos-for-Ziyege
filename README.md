@@ -1,6 +1,6 @@
 # **子夜歌双视图相册 (Typecho)**
 
-一款优雅、高性能的 Typecho 相册模板，支持文章封面列表与图片详情双视图，集成 Masonry 瀑布流、Magnific Popup 灯箱、图片懒加载，并针对性能与安全进行了深度优化。本版本（`ziyegephotos.php-3.php`）为**性能优化版**，新增缩略图生成、图片预加载、URL 编码、XSS 防护，并支持七牛云、又拍云、阿里云 OSS、缤纷云等主流云存储的实时图片裁剪。
+一款优雅、高性能的 Typecho 相册模板，支持文章封面列表与图片详情双视图，集成 Masonry 瀑布流、Magnific Popup 灯箱、图片懒加载，并针对性能与安全进行了深度优化。新增缩略图生成、图片预加载、URL 编码、XSS 防护，并支持七牛云、又拍云、阿里云 OSS、缤纷云等主流云存储的实时图片裁剪。
 
 ***
 <img width="1907" height="920" alt="image" src="https://github.com/user-attachments/assets/b23a6069-0fa1-40f9-8c95-fd5a70086570" />
