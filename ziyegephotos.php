@@ -130,8 +130,15 @@ $initialData = []; // 存储将要传递给前端的数据（JSON格式）
 $pageTitle   = ''; // 页面标题
 
 if ($pageMode === 'home') {
-    // ---------- 首页模式：获取指定分类下的所有文章 ----------
-    $category_id = 3; // ⚠️ 请改为你实际的分类ID
+    // ---------- 获取分类ID：优先使用自定义字段，否则默认3 ----------
+$category_id = 3; // 默认分类ID
+if (isset($this->fields->category_id) && is_numeric($this->fields->category_id)) {
+    $category_id = intval($this->fields->category_id);
+}
+// 确保分类ID为正整数
+if ($category_id <= 0) {
+    $category_id = 3; // 如果非法则回退到默认
+}
 
     $posts = $db->fetchAll($db->select('table.contents.cid, table.contents.title, table.contents.text')
         ->from('table.relationships')
@@ -652,3 +659,4 @@ render();
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </body>
 </html>
+
