@@ -956,8 +956,6 @@ function appendItems(data) {
 <!-- Bootstrap Icons（用于无图片提示等） -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </body>
-
-<!-- 调试：当前 perPage = <?php echo $perPage; ?> -->
 </html>
 
 
