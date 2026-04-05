@@ -4,9 +4,9 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 /**
  * 子夜歌双视图相册
  *
- * @版本号:     v1.0.2
- * @作者:       子夜歌
- * @更新日期:    2026-04-04
+ * @版本号:     v1.1.0
+ * @作者:       子夜歌 ziyege.com
+ * @更新日期:   2026-04-05
  * @GitHub:     https://github.com/ziyege/typecho-ziyege-photo
  * @license     MIT
  *
@@ -21,11 +21,11 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  *
  * ========== 使用前必读 ==========
  * 1. 修改默认分类ID：将下方 `$category_id = 3;` 改为你的相册分类ID。或者在建立相册页面时增加category_id自定义字段。
- * 2. 云存储域名配置：在 getThumbnailUrl 函数中，将占位域名（如“你的七牛域名.com”）替换为你的实际绑定域名。
+ * 2. 云存储域名配置：在 zpg_getThumbnailUrl 函数中，将占位域名（如“你的七牛域名.com”）替换为你的实际绑定域名。
  *    - 若不使用云存储，缩略图功能将失效（返回原图），可忽略此项。
  * 3. 缩略图尺寸可根据需要调整：
- *    - 首页封面：getThumbnailUrl($url, 400, 300, true)  —— 400x300 裁剪
- *    - 详情页列表：getThumbnailUrl($url, 600, 0)        —— 宽度 600px 等比缩放
+ *    - 首页封面：zpg_getThumbnailUrl($url, 400, 300, true)  —— 400x300 裁剪
+ *    - 详情页列表：zpg_getThumbnailUrl($url, 600, 0)        —— 宽度 600px 等比缩放
  *
  * @package custom
  */
@@ -38,9 +38,10 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * 生成随机图片URL（用于分类卡片背景）
  * 若主题已存在同名函数，则不再重复定义
  */
-if (!function_exists('getRandImg')) {
-    function getRandImg() {
-        // 使用 picsum 随机图片（可替换为你自己的图库）
+if (!function_exists('zpg_getRandImg')) {
+    function zpg_getRandImg() {
+        $seed = date('Ymd'); // 当天日期作为种子
+        mt_srand(crc32($seed));
         return 'https://picsum.photos/800/400?random=' . mt_rand();
     }
 }
@@ -54,7 +55,7 @@ if (!function_exists('getRandImg')) {
  * @param bool   $crop    是否裁剪（仅当 $height > 0 时有效）
  * @return string 处理后的缩略图 URL，若不支持则返回原图
  */
-function getThumbnailUrl($url, $width = 400, $height = 0, $crop = false) {
+function zpg_getThumbnailUrl($url, $width = 400, $height = 0, $crop = false) {
     if (empty($url)) return $url;
     $url = str_replace(' ', '%20', $url);
 
@@ -98,7 +99,8 @@ function getThumbnailUrl($url, $width = 400, $height = 0, $crop = false) {
             $params .= "&h={$height}";
             if ($crop) $params .= "&mode=crop";
         }
-        return $url . '?' . $params;
+        $separator = (strpos($url, '?') !== false) ? '&' : '?';
+        return $url . $separator . $params;
     }
 
     // 5. 其他情况（本地附件或外链）——无法生成缩略图，返回原图
@@ -112,7 +114,7 @@ function getThumbnailUrl($url, $width = 400, $height = 0, $crop = false) {
  * @param string $url 原始 URL
  * @return string 安全的 URL，若无效则返回空字符串
  */
-function safeImageUrl($url) {
+function zpg_safeImageUrl($url) {
     $url = trim($url);
     // 允许 http://, https://, data:image/, 以 / 开头的相对路径
     if (preg_match('/^(https?:|data:image|\/)/i', $url)) {
@@ -151,7 +153,6 @@ function extractImagesFromMarkdown($text) {
     $definitions = [];
 
     // 1. 提取引用定义 [id]: url
-    // 匹配格式： [id]: http://example.com/image.jpg "可选标题"
     preg_match_all('/^\s*\[([^\]]+)\]:\s*(\S+)(?:\s+(?:"|\')([^"\'"]+)(?:"|\'))?\s*$/m', $text, $matches, PREG_SET_ORDER);
     foreach ($matches as $match) {
         $id = trim($match[1]);
@@ -163,27 +164,51 @@ function extractImagesFromMarkdown($text) {
     preg_match_all('/!\[([^\]]*)\]\[([^\]]+)\]/', $text, $matches, PREG_SET_ORDER);
     foreach ($matches as $match) {
         $alt = trim($match[1]);
-        $id  = trim($match[2]);
+        $id = trim($match[2]);
         if (isset($definitions[$id])) {
             $images[] = [
                 'title' => $alt ?: '无标题',
-                'url'   => $definitions[$id]
+                'url' => $definitions[$id]
             ];
         }
     }
 
-    // 3. 提取行内式图片 ![alt](url)
-    preg_match_all('/!\[([^\]]*)\]\(([^)]+)\)/', $text, $matches, PREG_SET_ORDER);
+    // 3. 提取行内式图片 ![alt](url) — 支持 URL 中含括号
+    preg_match_all('/!\[([^\]]*)\]\(((?:[^()]+|\([^)]*\))*)\)/', $text, $matches, PREG_SET_ORDER);
     foreach ($matches as $match) {
         $alt = trim($match[1]);
         $url = trim($match[2]);
         $images[] = [
             'title' => $alt ?: '无标题',
-            'url'   => $url
+            'url' => $url
         ];
     }
 
-    return $images;
+    // 4. 提取 HTML <img> 标签
+    preg_match_all('/<img\s+[^>]*src\s*=\s*["\']([^"\']+)["\'][^>]*>/i', $text, $imgMatches, PREG_SET_ORDER);
+    foreach ($imgMatches as $match) {
+        $url = trim($match[1]);
+        $alt = '';
+        if (preg_match('/alt\s*=\s*["\']([^"\']*)["\']/i', $match[0], $altMatch)) {
+            $alt = trim($altMatch[1]);
+        }
+        $images[] = [
+            'title' => $alt ?: '无标题',
+            'url' => $url
+        ];
+    }
+
+    // 5. 根据 URL 去重
+    $seen = [];
+    $unique = [];
+    foreach ($images as $img) {
+        if (!isset($seen[$img['url']])) {
+            $seen[$img['url']] = true;
+            $unique[] = $img;
+        }
+    }
+
+    return $unique;
 }
 
 // ----------------------------------------------------------------------
@@ -221,40 +246,47 @@ if ($pageMode === 'home') {
         ->order('table.contents.created', Typecho_Db::SORT_DESC));
 
     $allArticles = [];
-foreach ($posts as $post) {
- $articleImages = extractImagesFromMarkdown($post['text']);
- $safeImages = [];
- foreach ($articleImages as $img) {
- $safeUrl = safeImageUrl($img['url']);
- if ($safeUrl !== '') {
- $img['url'] = $safeUrl;
- $safeImages[] = $img;
- }
- }
- if (count($safeImages) > 0) {
- $firstImg = $safeImages[0];
- $allArticles[] = [
- 'type' => 'article',
- 'title' => $post['title'],
- 'cover' => getThumbnailUrl($firstImg['url'], 400, 300, true),
- 'imageCount' => count($safeImages),
- 'postId' => $post['cid']
- ];
- }
-}
+    foreach ($posts as $post) {
+        $articleImages = extractImagesFromMarkdown($post['text']);
+        $safeImages = [];
+        foreach ($articleImages as $img) {
+            $safeUrl = zpg_safeImageUrl($img['url']);
+            if ($safeUrl !== '') {
+                $img['url'] = $safeUrl;
+                $safeImages[] = $img;
+            }
+        }
+        if (count($safeImages) > 0) {
+            $firstImg = $safeImages[0];
+            $allArticles[] = [
+                'type' => 'article',
+                'title' => $post['title'],
+                'cover' => zpg_getThumbnailUrl($firstImg['url'], 400, 300, true),
+                'imageCount' => count($safeImages),
+                'postId' => $post['cid']
+            ];
+        }
+    }
 
-$totalCount = count($allArticles);
-$totalPages = ceil($totalCount / $perPage);
-$offset = ($page - 1) * $perPage;
-$initialData = array_slice($allArticles, $offset, $perPage);
+    $totalCount = count($allArticles);
+    $totalPages = ceil($totalCount / $perPage);
+    $offset = ($page - 1) * $perPage;
+    $initialData = array_slice($allArticles, $offset, $perPage);
 
-$pagination = [
- 'current' => $page,
- 'total' => $totalPages,
- 'count' => $totalCount
-];
+    $pagination = [
+        'current' => $page,
+        'total' => $totalPages,
+        'count' => $totalCount
+    ];
 
-$pageTitle = '相册 - ' . $this->options->title;
+    $pageTitle = '相册 - ' . $this->options->title;
+
+    // 如果是 AJAX 请求（加载更多），返回 JSON 数据
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['data' => $initialData, 'pagination' => $pagination]);
+        exit;
+    }
 
 } else {
     // ---------- 详情模式：获取单篇文章的所有图片 ----------
@@ -265,35 +297,42 @@ $pageTitle = '相册 - ' . $this->options->title;
         ->where('status = ?', 'publish'));
 
     if ($post) {
- $images = extractImagesFromMarkdown($post['text']);
- $safeImages = [];
- foreach ($images as $img) {
- $safeUrl = safeImageUrl($img['url']);
- if ($safeUrl === '') continue;
- $safeImages[] = [
- 'type' => 'image',
- 'title' => $img['title'],
- 'desc' => $post['title'],
- 'url' => $safeUrl,
- 'thumb_url' => getThumbnailUrl($safeUrl, 600, 0)
- ];
- }
- 
- $totalCount = count($safeImages);
- $totalPages = ceil($totalCount / $perPage);
- $offset = ($page - 1) * $perPage;
- $initialData = array_slice($safeImages, $offset, $perPage);
- 
- $pagination = [
- 'current' => $page,
- 'total' => $totalPages,
- 'count' => $totalCount,
- 'postId' => $post_id
- ];
- 
- $pageTitle = htmlspecialchars($post['title']) . ' - 图片详情';
- } else {
- // 文章不存在，跳转回首页
+        $images = extractImagesFromMarkdown($post['text']);
+        $safeImages = [];
+        foreach ($images as $img) {
+            $safeUrl = zpg_safeImageUrl($img['url']);
+            if ($safeUrl === '') continue;
+            $safeImages[] = [
+                'type' => 'image',
+                'title' => $img['title'],
+                'desc' => $post['title'],
+                'url' => $safeUrl,
+                'thumb_url' => zpg_getThumbnailUrl($safeUrl, 600, 0)
+            ];
+        }
+
+        $totalCount = count($safeImages);
+        $totalPages = ceil($totalCount / $perPage);
+        $offset = ($page - 1) * $perPage;
+        $initialData = array_slice($safeImages, $offset, $perPage);
+
+        $pagination = [
+            'current' => $page,
+            'total' => $totalPages,
+            'count' => $totalCount,
+            'postId' => $post_id
+        ];
+
+        $pageTitle = htmlspecialchars($post['title']) . ' - 图片详情';
+
+        // AJAX 请求返回 JSON
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['data' => $initialData, 'pagination' => $pagination]);
+            exit;
+        }
+    } else {
+        // 文章不存在，跳转回首页
         header('Location: ' . $this->options->siteUrl);
         exit;
     }
@@ -302,36 +341,34 @@ $pageTitle = '相册 - ' . $this->options->title;
 <!DOCTYPE HTML>
 <html lang="zh-CN">
 <head>
- <title><?php echo htmlspecialchars($pageTitle); ?></title>
- <meta charset="utf-8" />
- <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
- 
- <?php if ($pageMode === 'home'): ?>
- <!-- 首页 SEO -->
- <meta name="description" content="<?php echo htmlspecialchars($this->options->title); ?>相册 - 浏览所有图片集合" />
- <meta property="og:title" content="<?php echo htmlspecialchars($this->options->title); ?> - 相册" />
- <meta property="og:description" content="浏览<?php echo htmlspecialchars($this->options->title); ?>的所有图片集合" />
- <meta property="og:type" content="website" />
- <meta property="og:url" content="<?php echo $this->permalink(); ?>" />
- <?php else: ?>
- <!-- 详情页 SEO -->
- <meta name="description" content="<?php echo htmlspecialchars($post['title']); ?> - 共<?php echo $totalCount; ?>张图片" />
- <meta property="og:title" content="<?php echo htmlspecialchars($post['title']); ?> - 图片详情" />
- <meta property="og:description" content="<?php echo htmlspecialchars($post['title']); ?> - 共<?php echo $totalCount; ?>张图片" />
- <meta property="og:type" content="article" />
- <meta property="og:url" content="<?php echo $this->permalink(); ?>?post_id=<?php echo $post_id; ?>" />
- <?php if (!empty($initialData)): ?>
- <meta property="og:image" content="<?php echo htmlspecialchars($initialData[0]['url']); ?>" />
- <?php endif; ?>
- <?php endif; ?>
+    <title><?php echo htmlspecialchars($pageTitle); ?></title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+
+    <?php if ($pageMode === 'home'): ?>
+        <!-- 首页 SEO -->
+        <meta name="description" content="<?php echo htmlspecialchars($this->options->title); ?>相册 - 浏览所有图片集合" />
+        <meta property="og:title" content="<?php echo htmlspecialchars($this->options->title); ?> - 相册" />
+        <meta property="og:description" content="浏览<?php echo htmlspecialchars($this->options->title); ?>的所有图片集合" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="<?php echo $this->permalink(); ?>" />
+    <?php else: ?>
+        <!-- 详情页 SEO -->
+        <meta name="description" content="<?php echo htmlspecialchars($post['title']); ?> - 共<?php echo $totalCount; ?>张图片" />
+        <meta property="og:title" content="<?php echo htmlspecialchars($post['title']); ?> - 图片详情" />
+        <meta property="og:description" content="<?php echo htmlspecialchars($post['title']); ?> - 共<?php echo $totalCount; ?>张图片" />
+        <meta property="og:type" content="article" />
+        <meta property="og:url" content="<?php echo $this->permalink(); ?>?post_id=<?php echo $post_id; ?>" />
+        <?php if (!empty($initialData)): ?>
+            <meta property="og:image" content="<?php echo htmlspecialchars($initialData[0]['url']); ?>" />
+        <?php endif; ?>
+    <?php endif; ?>
 
     <!-- Bootstrap 5 核心 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <!-- Magnific Popup 灯箱 CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/magnific-popup.min.css">
 
-    <!-- 自定义样式 -->
     <style>
         /* ---------- 加载指示器 ---------- */
         #loading-indicator {
@@ -361,21 +398,21 @@ $pageTitle = '相册 - ' . $this->options->title;
         }
 
         /* ---------- 图片样式：宽度100%，高度自适应，保持原比例 ---------- */
- .thumb img {
- width: 100%;
- height: auto;
- display: block;
- transition: opacity 0.3s ease;
- opacity: 0;
- background-color: #f0f0f0;
- min-height: 150px;
- }
+        .thumb img {
+            width: 100%;
+            height: auto;
+            display: block;
+            transition: opacity 0.3s ease;
+            opacity: 0;
+            background-color: #f0f0f0;
+            min-height: 150px;
+        }
         .thumb img.loaded {
             opacity: 1;
         }
         /* 详情页图片最小高度，防止布局坍塌 */
         .thumb img.img-detail {
-            min-height: 0px;
+            min-height: 200px;
         }
 
         /* ---------- 全屏遮罩（悬停时出现） ---------- */
@@ -504,37 +541,38 @@ $pageTitle = '相册 - ' . $this->options->title;
         .mfp-fade.mfp-wrap.mfp-removing .mfp-content {
             opacity: 0;
         }
- /* ---------- 加载更多按钮 ---------- */
- .load-more-btn {
- display: block;
- width: 100%;
- max-width: 300px;
- margin: 2rem auto;
- padding: 0.75rem 1.5rem;
- background: #fff;
- border: 1px solid #dee2e6;
- border-radius: 4px;
- color: #0d6efd;
- font-size: 1rem;
- cursor: pointer;
- transition: all 0.2s;
- }
- .load-more-btn:hover {
- background: #0d6efd;
- color: #fff;
- }
- .load-more-btn:disabled {
- background: #f8f9fa;
- color: #6c757d;
- cursor: not-allowed;
- }
+
+        /* ---------- 加载更多按钮 ---------- */
+        .load-more-btn {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 2rem auto;
+            padding: 0.75rem 1.5rem;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            color: #0d6efd;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .load-more-btn:hover {
+            background: #0d6efd;
+            color: #fff;
+        }
+        .load-more-btn:disabled {
+            background: #f8f9fa;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
     </style>
 
     <!-- 预加载首页前4张封面图片，提升用户体验 -->
     <?php if ($pageMode === 'home' && !empty($initialData)): ?>
-    <?php for ($i = 0; $i < min(4, count($initialData)); $i++): ?>
-    <link rel="preload" as="image" href="<?= htmlspecialchars($initialData[$i]['cover']) ?>">
-    <?php endfor; ?>
+        <?php for ($i = 0; $i < min(4, count($initialData)); $i++): ?>
+            <link rel="preload" as="image" href="<?= htmlspecialchars($initialData[$i]['cover']) ?>">
+        <?php endfor; ?>
     <?php endif; ?>
 </head>
 <body>
@@ -556,9 +594,9 @@ $pageTitle = '相册 - ' . $this->options->title;
             ->where('mid = ?', $category_id))->num;
 ?>
     <div class="container px-4 px-md-3 mt-3">
-        <div class="card category-box border-0 overflow-hidden" style="position: relative; height: 0px;">
+        <div class="card category-box border-0 overflow-hidden" style="position: relative; height: 200px;">
             <!-- 随机背景图 -->
-            <img src="<?php echo getRandImg(); ?>" alt="分类背景" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1;">
+            <img src="<?php echo zpg_getRandImg(); ?>" alt="分类背景" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1;">
             <!-- 文字遮罩层 -->
             <div class="category-item p-4" style="position: relative; z-index: 2; background: rgba(0,0,0,0.3); height: 100%; display: flex; flex-direction: column; justify-content: flex-end; color: white;">
                 <span class="category-name fs-4 fw-bold"><?php echo htmlspecialchars($category['name']); ?> &bull; 共 <?php echo $total; ?> 篇</span>
@@ -571,9 +609,6 @@ $pageTitle = '相册 - ' . $this->options->title;
 <?php
     endif;
 endif;
-
-
-
 ?>
 
 <!-- ==================== 主内容区域 ==================== -->
@@ -588,7 +623,7 @@ endif;
         </a>
         <!-- 右侧返回按钮（仅详情页显示） -->
         <?php if ($pageMode === 'post'): ?>
-        <a href="<?= $this->permalink() ?>" class="btn btn-outline-secondary btn-sm">返回相册</a>
+            <a href="<?= $this->permalink() ?>" class="btn btn-outline-secondary btn-sm">返回相册</a>
         <?php endif; ?>
     </div>
 
@@ -605,7 +640,7 @@ endif;
 
     <!-- 分页导航占位（暂未启用） -->
     <?php if ($pageMode === 'post'): ?>
-    <nav id="pagination-nav" class="pagination-nav" aria-label="分页导航" style="display: none;"></nav>
+        <nav id="pagination-nav" class="pagination-nav" aria-label="分页导航" style="display: none;"></nav>
     <?php endif; ?>
 </div>
 
@@ -622,15 +657,15 @@ endif;
 <!-- Magnific Popup 灯箱 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/jquery.magnific-popup.min.js"></script>
 
-<!-- ==================== 自定义脚本 ==================== -->
 <script>
 // 从 PHP 注入的数据
 var initialData = <?php echo json_encode($initialData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-var pageMode = '<?php echo $pageMode; ?>';
+var pageMode = <?php echo json_encode($pageMode); ?>;
 var pagination = <?php echo $pagination ? json_encode($pagination) : 'null'; ?>;
+var perPage = <?php echo json_encode($perPage); ?>;
 
 // 图片加载失败的占位图（灰色背景 + 文字）
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg%xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%20viewBox%3D%220%200%20400%20400%22%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20font-family%3D%22Arial%22%20font-size%3D%2220%22%20fill%3D%22%23999%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3E%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5%3C%2Ftext%3E%3C%2Fsvg%3E';
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%20viewBox%3D%220%200%20400%20400%22%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20font-family%3D%22Arial%22%20font-size%3D%2220%22%20fill%3D%22%23999%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3E%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5%3C%2Ftext%3E%3C%2Fsvg%3E';
 
 let masonryInstance = null; // Masonry 实例（用于切换页面时销毁）
 
@@ -663,7 +698,6 @@ function render() {
             var img = document.createElement('img');
             img.src = item.cover;                     // 真实地址
             img.loading = 'lazy';                      // 原生懒加载
-
             img.alt = item.title ? item.title + ' - 文章封面' : '文章封面';
             img.onload = function() {
                 this.classList.add('loaded');
@@ -686,8 +720,16 @@ function render() {
             // 悬停文字（显示文章标题和图片数量）
             var caption = document.createElement('div');
             caption.className = 'caption-light';
-            caption.innerHTML = '<span class="entry-date">' + item.title + '</span>' +
-                                '<span class="post-tag">共 ' + item.imageCount + ' 张</span>';
+            var titleSpan = document.createElement('span');
+            titleSpan.className = 'entry-date';
+            titleSpan.textContent = item.title;
+
+            var tagSpan = document.createElement('span');
+            tagSpan.className = 'post-tag';
+            tagSpan.textContent = '共 ' + item.imageCount + ' 张';
+
+            caption.appendChild(titleSpan);
+            caption.appendChild(tagSpan);
             article.appendChild(caption);
 
             col.appendChild(article);
@@ -776,26 +818,25 @@ function render() {
         initLightbox();
     }
 
-    // 隐藏加载指示器
- // 渲染加载更多按钮
- if (pagination && pagination.current < pagination.total) {
- var existingBtn = document.getElementById('load-more-btn');
- if (existingBtn) existingBtn.remove();
- 
- var remaining = pagination.count - pagination.current * 12;
- var btn = document.createElement('button');
- btn.id = 'load-more-btn';
- btn.className = 'load-more-btn';
- btn.textContent = '加载更多 (剩余 ' + remaining + ' ' + (pageMode === 'home' ? '篇' : '张') + ')';
- btn.onclick = function() {
- this.disabled = true;
- this.textContent = '加载中...';
- loadMore();
- };
- container.parentNode.appendChild(btn);
- }
+    // 渲染加载更多按钮
+    if (pagination && pagination.current < pagination.total) {
+        var existingBtn = document.getElementById('load-more-btn');
+        if (existingBtn) existingBtn.remove();
 
- loading.classList.remove('show');
+        var remaining = pagination.count - pagination.current * perPage;
+        var btn = document.createElement('button');
+        btn.id = 'load-more-btn';
+        btn.className = 'load-more-btn';
+        btn.textContent = '加载更多 (剩余 ' + remaining + ' ' + (pageMode === 'home' ? '篇' : '张') + ')';
+        btn.onclick = function() {
+            this.disabled = true;
+            this.textContent = '加载中...';
+            loadMore();
+        };
+        container.parentNode.appendChild(btn);
+    }
+
+    loading.classList.remove('show');
 }
 
 /**
@@ -832,124 +873,127 @@ function initLightbox() {
 
 // 启动渲染
 render();
+
 /**
- * 加载更多
+ * 加载更多（AJAX 分页）
  */
 function loadMore() {
- var nextPage = pagination.current + 1;
- var url = window.location.pathname + '?page=' + nextPage;
- if (pageMode === 'post') {
- url = '?post_id=' + pagination.postId + '&page=' + nextPage;
- }
- 
- fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
- .then(function(res) { return res.text(); })
- .then(function(html) {
- var match = html.match(/var initialData = (\[.*?\]);/s);
- var pageMatch = html.match(/var pagination = (\{.*?\});/s);
- 
- if (match && pageMatch) {
- var newData = JSON.parse(match[1]);
- pagination = JSON.parse(pageMatch[1]);
- initialData = initialData.concat(newData);
- appendItems(newData);
- }
- })
- .catch(function(err) {
- console.error('加载失败:', err);
- var btn = document.getElementById('load-more-btn');
- if (btn) {
- btn.disabled = false;
- btn.textContent = '加载失败，点击重试';
- }
- });
+    var nextPage = pagination.current + 1;
+    var baseUrl = window.location.pathname;
+    var params = new URLSearchParams(window.location.search);
+    params.set('page', nextPage);
+    var url = baseUrl + '?' + params.toString();
+
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(res) { return res.json(); })
+        .then(function(result) {
+            if (result && result.data) {
+                pagination = result.pagination;
+                initialData = initialData.concat(result.data);
+                appendItems(result.data);
+            }
+        })
+        .catch(function(err) {
+            console.error('加载失败:', err);
+            var btn = document.getElementById('load-more-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '加载失败，点击重试';
+            }
+        });
 }
 
 /**
- * 追加项目到容器
+ * 追加项目到容器（用于加载更多）
  */
 function appendItems(data) {
- var container = document.getElementById('main');
- 
- data.forEach(function(item) {
- var col = document.createElement('div');
- col.className = 'col-6 col-md-4 col-lg-3';
+    var container = document.getElementById('main');
 
- var article = document.createElement('article');
- article.className = 'thumb';
+    data.forEach(function(item) {
+        var col = document.createElement('div');
+        col.className = 'col-6 col-md-4 col-lg-3';
 
- var a = document.createElement('a');
- a.className = 'image d-block';
- 
- if (pageMode === 'home') {
- a.href = '<?= $this->permalink() ?>?post_id=' + item.postId;
- } else {
- a.href = item.url;
- }
+        var article = document.createElement('article');
+        article.className = 'thumb';
 
- var img = document.createElement('img');
- img.src = pageMode === 'home' ? item.cover : (item.thumb_url || item.url);
- img.loading = 'lazy';
- img.alt = item.title || item.desc || '图片';
- if (pageMode === 'post') img.className = 'img-detail';
- 
- img.onload = function() {
- this.classList.add('loaded');
- if (masonryInstance) masonryInstance.layout();
- };
- img.onerror = function() {
- this.src = PLACEHOLDER_IMAGE;
- this.classList.add('loaded');
- if (masonryInstance) masonryInstance.layout();
- };
+        var a = document.createElement('a');
+        a.className = 'image d-block';
 
- a.appendChild(img);
- article.appendChild(a);
+        if (pageMode === 'home') {
+            a.href = '<?= $this->permalink() ?>?post_id=' + item.postId;
+        } else {
+            a.href = item.url;
+        }
 
- var mask = document.createElement('div');
- mask.className = 'mask';
- article.appendChild(mask);
+        var img = document.createElement('img');
+        img.src = pageMode === 'home' ? item.cover : (item.thumb_url || item.url);
+        img.loading = 'lazy';
+        img.alt = item.title || item.desc || '图片';
+        if (pageMode === 'post') img.className = 'img-detail';
 
- if (pageMode === 'home') {
- var caption = document.createElement('div');
- caption.className = 'caption-light';
- caption.innerHTML = '<span class="entry-date">' + item.title + '</span>' +
- '<span class="post-tag">共 ' + item.imageCount + ' 张</span>';
- article.appendChild(caption);
- } else {
- var hiddenH2 = document.createElement('h2');
- hiddenH2.textContent = item.title || '无标题';
- article.appendChild(hiddenH2);
+        img.onload = function() {
+            this.classList.add('loaded');
+            if (masonryInstance) masonryInstance.layout();
+        };
+        img.onerror = function() {
+            this.src = PLACEHOLDER_IMAGE;
+            this.classList.add('loaded');
+            if (masonryInstance) masonryInstance.layout();
+        };
 
- var hiddenP = document.createElement('p');
- hiddenP.textContent = item.desc || '无描述';
- article.appendChild(hiddenP);
- }
+        a.appendChild(img);
+        article.appendChild(a);
 
- col.appendChild(article);
- container.appendChild(col);
- });
+        var mask = document.createElement('div');
+        mask.className = 'mask';
+        article.appendChild(mask);
 
- // 重新初始化 Masonry
- if (masonryInstance) {
- masonryInstance.reloadItems();
- masonryInstance.layout();
- }
- 
- // 重新绑定灯箱（详情页）
- if (pageMode === 'post') {
- initLightbox();
- }
- 
- // 更新按钮状态
- var btn = document.getElementById('load-more-btn');
- if (pagination.current >= pagination.total) {
- if (btn) btn.remove();
- } else if (btn) {
- var remaining = pagination.count - pagination.current * 12;
- btn.disabled = false;
- btn.textContent = '加载更多 (剩余 ' + remaining + ' ' + (pageMode === 'home' ? '篇' : '张') + ')';
- }
+        if (pageMode === 'home') {
+            var caption = document.createElement('div');
+            caption.className = 'caption-light';
+            var titleSpan = document.createElement('span');
+            titleSpan.className = 'entry-date';
+            titleSpan.textContent = item.title;
+            var tagSpan = document.createElement('span');
+            tagSpan.className = 'post-tag';
+            tagSpan.textContent = '共 ' + item.imageCount + ' 张';
+            caption.appendChild(titleSpan);
+            caption.appendChild(tagSpan);
+            article.appendChild(caption);
+        } else {
+            var hiddenH2 = document.createElement('h2');
+            hiddenH2.textContent = item.title || '无标题';
+            article.appendChild(hiddenH2);
+
+            var hiddenP = document.createElement('p');
+            hiddenP.textContent = item.desc || '无描述';
+            article.appendChild(hiddenP);
+        }
+
+        col.appendChild(article);
+        container.appendChild(col);
+    });
+
+    // 重新初始化 Masonry
+    if (masonryInstance) {
+        masonryInstance.reloadItems();
+        masonryInstance.layout();
+    }
+
+    // 重新绑定灯箱（详情页）
+    if (pageMode === 'post') {
+        initLightbox();
+    }
+
+    // 更新按钮状态
+    var btn = document.getElementById('load-more-btn');
+    if (pagination.current >= pagination.total) {
+        if (btn) btn.remove();
+    } else if (btn) {
+        var remaining = pagination.count - pagination.current * perPage;
+        btn.disabled = false;
+        btn.textContent = '加载更多 (剩余 ' + remaining + ' ' + (pageMode === 'home' ? '篇' : '张') + ')';
+    }
 }
 </script>
 
@@ -957,6 +1001,3 @@ function appendItems(data) {
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </body>
 </html>
-
-
-
