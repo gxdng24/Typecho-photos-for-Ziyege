@@ -375,7 +375,7 @@ $pageTitle = '相册 - ' . $this->options->title;
         }
         /* 详情页图片最小高度，防止布局坍塌 */
         .thumb img.img-detail {
-            min-height: 200px;
+            min-height: 0px;
         }
 
         /* ---------- 全屏遮罩（悬停时出现） ---------- */
@@ -556,7 +556,7 @@ $pageTitle = '相册 - ' . $this->options->title;
             ->where('mid = ?', $category_id))->num;
 ?>
     <div class="container px-4 px-md-3 mt-3">
-        <div class="card category-box border-0 overflow-hidden" style="position: relative; height: 200px;">
+        <div class="card category-box border-0 overflow-hidden" style="position: relative; height: 0px;">
             <!-- 随机背景图 -->
             <img src="<?php echo getRandImg(); ?>" alt="分类背景" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1;">
             <!-- 文字遮罩层 -->
@@ -630,7 +630,7 @@ var pageMode = '<?php echo $pageMode; ?>';
 var pagination = <?php echo $pagination ? json_encode($pagination) : 'null'; ?>;
 
 // 图片加载失败的占位图（灰色背景 + 文字）
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%20viewBox%3D%220%200%20400%20400%22%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20font-family%3D%22Arial%22%20font-size%3D%2220%22%20fill%3D%22%23999%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3E%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5%3C%2Ftext%3E%3C%2Fsvg%3E';
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg%xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%20viewBox%3D%220%200%20400%20400%22%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20font-family%3D%22Arial%22%20font-size%3D%2220%22%20fill%3D%22%23999%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3E%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5%3C%2Ftext%3E%3C%2Fsvg%3E';
 
 let masonryInstance = null; // Masonry 实例（用于切换页面时销毁）
 
@@ -946,7 +946,7 @@ function appendItems(data) {
  if (pagination.current >= pagination.total) {
  if (btn) btn.remove();
  } else if (btn) {
- var remaining = pagination.count - pagination.current * 20;
+ var remaining = pagination.count - pagination.current * 12;
  btn.disabled = false;
  btn.textContent = '加载更多 (剩余 ' + remaining + ' ' + (pageMode === 'home' ? '篇' : '张') + ')';
  }
